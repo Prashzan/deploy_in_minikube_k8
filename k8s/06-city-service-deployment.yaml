@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: city-service
+  namespace: weather-app
+  labels:
+    app: city-service
+    tier: backend
+spec:
+  replicas: 1  # Run 2 replicas for high availability
+  selector:
+    matchLabels:
+      app: city-service
+  template:
+    metadata:
+      labels:
+        app: city-service
+        tier: backend
+    spec:
+      containers:
+      - name: city-service
+        # IMPORTANT: Replace with your Docker Hub image
+        # Format: <dockerhub-username>/city-service:v1.0
+        image: prashzan/city-service:v1.0
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 5001
+          name: http
+        env:
+        - name: OPENWEATHER_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: weather-app-secrets
+              key: openweather-api-key
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 5001
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3

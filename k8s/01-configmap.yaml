@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-script
+  namespace: weather-app
+data:
+  init.sql: |
+    -- Initialize Weather Database
+    
+    -- Create weather_searches table
+    CREATE TABLE IF NOT EXISTS weather_searches (
+        id SERIAL PRIMARY KEY,
+        city_name VARCHAR(100) NOT NULL,
+        country VARCHAR(10),
+        latitude DECIMAL(10, 6),
+        longitude DECIMAL(10, 6),
+        temperature DECIMAL(5, 2),
+        feels_like DECIMAL(5, 2),
+        humidity INTEGER,
+        pressure INTEGER,
+        weather_main VARCHAR(50),
+        weather_description VARCHAR(100),
+        wind_speed DECIMAL(5, 2),
+        searched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    -- Create indexes for faster queries
+    CREATE INDEX IF NOT EXISTS idx_city_name ON weather_searches(city_name);
+    CREATE INDEX IF NOT EXISTS idx_searched_at ON weather_searches(searched_at);

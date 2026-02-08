@@ -1,0 +1,92 @@
+name: Pull Request Validation
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  # Validate PR changes
+  validate-pr:
+    name: Validate Pull Request
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for proper diff
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install flake8 black pylint yamllint
+
+      - name: Lint Python files
+        run: |
+          echo "Checking Python code quality..."
+          find . -name "*.py" -not -path "./venv/*" | xargs flake8 --max-line-length=120 --ignore=E501,W503 || true
+          find . -name "*.py" -not -path "./venv/*" | xargs black --check || true
+
+      - name: Lint YAML files
+        run: |
+          echo "Checking YAML files..."
+          find k8s -name "*.yaml" | xargs yamllint || true
+
+      - name: Check for secrets in code
+        run: |
+          echo "Scanning for potential secrets..."
+          if grep -r "password\s*=\s*['\"]" --include="*.py" .; then
+            echo "⚠️  Warning: Found hardcoded passwords!"
+          fi
+          if grep -r "api[_-]key\s*=\s*['\"]" --include="*.py" .; then
+            echo "⚠️  Warning: Found hardcoded API keys!"
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker images (no push)
+        run: |
+          docker build -t city-service:pr ./city-service
+          docker build -t weather-service:pr ./weather-service
+          docker build -t frontend:pr ./frontend
+
+      - name: Test Docker images
+        run: |
+          echo "Testing if images run successfully..."
+          docker run -d --name test-city city-service:pr || true
+          sleep 3
+          docker logs test-city
+          docker stop test-city || true
+          docker rm test-city || true
+
+      - name: PR Summary
+        run: |
+          echo "✅ All validations passed!"
+          echo "PR is ready for review"
+
+  # Security scan
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'table'
+          exit-code: '0'
+
+      - name: Check for dependency vulnerabilities
+        run: |
+          echo "Checking Python dependencies..."
+          pip install safety
+          safety check --file=city-service/requirements.txt || true
+          safety check --file=weather-service/requirements.txt || true

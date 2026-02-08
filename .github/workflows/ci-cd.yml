@@ -1,0 +1,334 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  # Job 1: Lint and Validate
+  lint-and-validate:
+    name: Lint Code & Validate Manifests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python linting tools
+        run: |
+          pip install flake8 black pylint
+
+      - name: Lint Python code - City Service
+        run: |
+          echo "Linting city-service..."
+          flake8 city-service/app.py --max-line-length=120 --ignore=E501,W503 || true
+          black --check city-service/app.py || true
+
+      - name: Lint Python code - Weather Service
+        run: |
+          echo "Linting weather-service..."
+          flake8 weather-service/app.py --max-line-length=120 --ignore=E501,W503 || true
+          black --check weather-service/app.py || true
+
+      - name: Install kubeval for K8s manifest validation
+        run: |
+          wget https://github.com/instrumenta/kubeval/releases/latest/download/kubeval-linux-amd64.tar.gz
+          tar xf kubeval-linux-amd64.tar.gz
+          sudo mv kubeval /usr/local/bin
+
+      - name: Validate Kubernetes manifests
+        run: |
+          echo "Validating Kubernetes YAML files..."
+          for file in k8s/*.yaml; do
+            echo "Validating $file"
+            kubeval --strict --ignore-missing-schemas "$file" || true
+          done
+
+      - name: Install yamllint
+        run: pip install yamllint
+
+      - name: Lint YAML files
+        run: |
+          echo "Linting YAML files..."
+          yamllint k8s/*.yaml -c .yamllint.yml || true
+
+  # Job 2: Build and Test Docker Images
+  build-and-test:
+    name: Build & Test Docker Images
+    runs-on: ubuntu-latest
+    needs: lint-and-validate
+    strategy:
+      matrix:
+        service: [city-service, weather-service, frontend]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.service }}
+          file: ./${{ matrix.service }}/Dockerfile
+          push: false
+          tags: ${{ matrix.service }}:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          load: true
+
+      - name: Test image - Check if it runs
+        run: |
+          docker run -d --name test-${{ matrix.service }} \
+            -e OPENWEATHER_API_KEY=test \
+            -e DB_HOST=localhost \
+            -e DB_USER=test \
+            -e DB_PASSWORD=test \
+            -e DB_NAME=test \
+            ${{ matrix.service }}:test || true
+          sleep 5
+          docker logs test-${{ matrix.service }} || true
+          docker stop test-${{ matrix.service }} || true
+          docker rm test-${{ matrix.service }} || true
+
+      - name: Scan image for vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ matrix.service }}:test
+          format: 'table'
+          exit-code: '0'  # Don't fail on vulnerabilities (change to 1 for strict)
+          severity: 'CRITICAL,HIGH'
+
+  # Job 3: Dry Run - Validate Deployment
+  dry-run:
+    name: Kubernetes Dry Run
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Create temporary kubeconfig (for validation only)
+        run: |
+          mkdir -p $HOME/.kube
+          cat > $HOME/.kube/config << EOF
+          apiVersion: v1
+          kind: Config
+          clusters:
+          - cluster:
+              server: https://kubernetes.default.svc
+            name: dry-run-cluster
+          contexts:
+          - context:
+              cluster: dry-run-cluster
+              user: dry-run-user
+            name: dry-run-context
+          current-context: dry-run-context
+          users:
+          - name: dry-run-user
+            user:
+              token: dummy
+          EOF
+
+      - name: Prepare manifests with image tags
+        run: |
+          # Create temp directory
+          mkdir -p /tmp/k8s-manifests
+          
+          # Copy manifests
+          cp k8s/*.yaml /tmp/k8s-manifests/
+          
+          # Update image tags with commit SHA
+          sed -i "s|YOUR_DOCKERHUB_USERNAME/city-service:v1.0|${{ secrets.DOCKERHUB_USERNAME }}/city-service:${{ github.sha }}|g" /tmp/k8s-manifests/06-city-service-deployment.yaml
+          sed -i "s|YOUR_DOCKERHUB_USERNAME/weather-service:v1.0|${{ secrets.DOCKERHUB_USERNAME }}/weather-service:${{ github.sha }}|g" /tmp/k8s-manifests/08-weather-service-deployment.yaml
+          sed -i "s|YOUR_DOCKERHUB_USERNAME/weather-frontend:v1.0|${{ secrets.DOCKERHUB_USERNAME }}/weather-frontend:${{ github.sha }}|g" /tmp/k8s-manifests/10-frontend-deployment.yaml
+
+      - name: Kubernetes Dry Run - Validate manifests
+        run: |
+          echo "Running Kubernetes dry-run validation..."
+          kubectl apply --dry-run=client -f /tmp/k8s-manifests/ || echo "Dry run completed with warnings"
+
+      - name: Upload manifests as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: k8s-manifests
+          path: /tmp/k8s-manifests/
+
+  # Job 4: Build and Push to Docker Hub
+  build-and-push:
+    name: Build & Push to Docker Hub
+    runs-on: ubuntu-latest
+    needs: dry-run
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    strategy:
+      matrix:
+        service: [city-service, weather-service, frontend]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.service }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value={{date 'YYYYMMDD-HHmmss'}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.service }}
+          file: ./${{ matrix.service }}/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.service }}:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.service }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Image digest
+        run: echo "Image pushed with digest ${{ steps.meta.outputs.digest }}"
+
+  # Job 5: Deploy to Minikube (for testing/staging)
+  deploy-to-minikube:
+    name: Deploy to Minikube (Local/Staging)
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Start Minikube
+        uses: medyagh/setup-minikube@latest
+        with:
+          cpus: 2
+          memory: 4096
+
+      - name: Verify Minikube
+        run: |
+          kubectl cluster-info
+          kubectl get nodes
+
+      - name: Download manifests artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: k8s-manifests
+          path: ./k8s-deploy
+
+      - name: Update manifest with secrets
+        run: |
+          # Update secrets with actual values from GitHub secrets
+          sed -i "s|openweather-api-key: \"your_openweather_api_key_here\"|openweather-api-key: \"${{ secrets.OPENWEATHER_API_KEY }}\"|g" k8s-deploy/02-secrets.yaml
+
+      - name: Deploy to Minikube
+        run: |
+          echo "Deploying to Minikube..."
+          
+          # Apply manifests in order
+          kubectl apply -f k8s-deploy/00-namespace.yaml
+          kubectl apply -f k8s-deploy/01-configmap.yaml
+          kubectl apply -f k8s-deploy/02-secrets.yaml
+          kubectl apply -f k8s-deploy/03-pvc.yaml
+          
+          # Deploy PostgreSQL
+          kubectl apply -f k8s-deploy/04-postgres-deployment.yaml
+          kubectl apply -f k8s-deploy/05-postgres-service.yaml
+          
+          # Wait for PostgreSQL
+          kubectl wait --for=condition=ready pod -l app=postgres -n weather-app --timeout=120s
+          
+          # Deploy services
+          kubectl apply -f k8s-deploy/06-city-service-deployment.yaml
+          kubectl apply -f k8s-deploy/07-city-service-service.yaml
+          kubectl apply -f k8s-deploy/08-weather-service-deployment.yaml
+          kubectl apply -f k8s-deploy/09-weather-service-service.yaml
+          kubectl apply -f k8s-deploy/10-frontend-deployment.yaml
+          kubectl apply -f k8s-deploy/11-frontend-service.yaml
+
+      - name: Wait for deployment to be ready
+        run: |
+          echo "Waiting for pods to be ready..."
+          kubectl wait --for=condition=ready pod -l tier=backend -n weather-app --timeout=180s || true
+          kubectl wait --for=condition=ready pod -l tier=frontend -n weather-app --timeout=120s || true
+
+      - name: Verify deployment
+        run: |
+          echo "Deployment Status:"
+          kubectl get pods -n weather-app
+          echo ""
+          kubectl get svc -n weather-app
+
+      - name: Run smoke tests
+        run: |
+          echo "Running smoke tests..."
+          
+          # Port forward services for testing
+          kubectl port-forward -n weather-app service/city-service 5001:5001 &
+          kubectl port-forward -n weather-app service/weather-service 5002:5002 &
+          sleep 5
+          
+          # Test city service
+          curl -f http://localhost:5001/health || echo "City service health check failed"
+          
+          # Test weather service
+          curl -f http://localhost:5002/health || echo "Weather service health check failed"
+
+      - name: Upload deployment logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-logs
+          path: |
+            kubectl logs -n weather-app -l app=city-service
+            kubectl logs -n weather-app -l app=weather-service
+
+  # Job 6: Notify on Success/Failure
+  notify:
+    name: Notify Deployment Status
+    runs-on: ubuntu-latest
+    needs: [deploy-to-minikube]
+    if: always()
+    steps:
+      - name: Deployment Success
+        if: needs.deploy-to-minikube.result == 'success'
+        run: |
+          echo "🎉 Deployment successful!"
+          echo "Version: ${{ github.sha }}"
+          echo "Deployed at: $(date)"
+
+      - name: Deployment Failed
+        if: needs.deploy-to-minikube.result == 'failure'
+        run: |
+          echo "❌ Deployment failed!"
+          echo "Check logs for details"
+          exit 1

@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weather-service
+  namespace: weather-app
+  labels:
+    app: weather-service
+    tier: backend
+spec:
+  replicas: 1  # Run 2 replicas for high availability
+  selector:
+    matchLabels:
+      app: weather-service
+  template:
+    metadata:
+      labels:
+        app: weather-service
+        tier: backend
+    spec:
+      containers:
+      - name: weather-service
+        # IMPORTANT: Replace with your Docker Hub image
+        # Format: <dockerhub-username>/weather-service:v1.0
+        image: prashzan/weather-service:v1.0
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 5002
+          name: http
+        env:
+        - name: OPENWEATHER_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: weather-app-secrets
+              key: openweather-api-key
+        - name: DB_HOST
+          value: "postgres-service"  # Kubernetes service name
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: weather-app-secrets
+              key: postgres-db
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: weather-app-secrets
+              key: postgres-user
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: weather-app-secrets
+              key: postgres-password
+        - name: DB_PORT
+          value: "5432"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5002
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 5002
+          initialDelaySeconds: 30
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 5
