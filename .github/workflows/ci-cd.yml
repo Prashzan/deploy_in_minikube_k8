@@ -156,9 +156,9 @@ jobs:
           cp k8s/*.yaml /tmp/k8s-manifests/
           
           # Update image tags with commit SHA
-          sed -i "s|YOUR_DOCKERHUB_USERNAME/city-service:v1.0| ${{ secrets.DOCKERHUB_USERNAME }}/city-service:${{ github.sha }}|g" /tmp/k8s-manifests/06-city-service-deployment.yaml
-          sed -i "s|YOUR_DOCKERHUB_USERNAME/weather-service:v1.0| ${{ secrets.DOCKERHUB_USERNAME }}/weather-service:${{ github.sha }}|g" /tmp/k8s-manifests/08-weather-service-deployment.yaml
-          sed -i "s|YOUR_DOCKERHUB_USERNAME/weather-frontend:v1.0| ${{ secrets.DOCKERHUB_USERNAME }}/weather-frontend:${{ github.sha }}|g" /tmp/k8s-manifests/10-frontend-deployment.yaml
+          sed -i "s|YOUR_DOCKERHUB_USERNAME/city-service:v1.0|${DOCKERHUB_USERNAME}/city-service:${IMAGE_TAG}|g" /tmp/k8s-manifests/06-city-service-deployment.yaml
+          sed -i "s|YOUR_DOCKERHUB_USERNAME/weather-service:v1.0|${DOCKERHUB_USERNAME}/weather-service:${IMAGE_TAG}|g" /tmp/k8s-manifests/08-weather-service-deployment.yaml
+          sed -i "s|YOUR_DOCKERHUB_USERNAME/weather-frontend:v1.0|${DOCKERHUB_USERNAME}/weather-frontend:${IMAGE_TAG}|g" /tmp/k8s-manifests/10-frontend-deployment.yaml
 
       - name: Kubernetes Dry Run - Validate manifests
         run: |
