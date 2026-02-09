@@ -194,8 +194,8 @@ jobs:
           # We check if the username exists; if not, we use 'prashzan' as a fallback
           # OR just ensure the secret is fixed in GitHub settings.
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME || 'prashzan' }}/${{ matrix.service }}:${{ github.sha }}
-            ${{ secrets.DOCKERHUB_USERNAME || 'prashzan' }}/${{ matrix.service }}:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.service }}:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.service }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
