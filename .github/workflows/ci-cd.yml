@@ -141,7 +141,7 @@ jobs:
       - name: Dry run validation
         run: |
           echo "Running dry-run..."
-          kubectl apply --dry-run=client --validate=false -f /tmp/k8s-manifests/
+          kubectl create --dry-run=client --validate=false -f /tmp/k8s-manifests/
 
       - name: Upload manifests
         uses: actions/upload-artifact@v4
