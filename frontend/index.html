@@ -421,6 +421,7 @@
             try {
                 const response = await fetch(`${WEATHER_SERVICE}/api/weather/stats`);
                 const data = await response.json();
+                console.log('Stats data:', data);
 
                 const statsDiv = document.getElementById('stats');
                 

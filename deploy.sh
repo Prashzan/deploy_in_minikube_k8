@@ -73,10 +73,12 @@ kubectl apply -f k8s/10-frontend-deployment.yaml
 kubectl apply -f k8s/11-frontend-service.yaml
 echo ""
 
-echo -e "${BLUE}Step 10: Waiting for all pods to be ready...${NC}"
-kubectl wait --for=condition=ready pod -l tier=backend -n weather-app --timeout=180s
-kubectl wait --for=condition=ready pod -l tier=frontend -n weather-app --timeout=120s
-echo ""
+echo -e "${BLUE}Step 10: Waiting for deployments to be ready...${NC}"
+
+# Wait for each deployment to complete rollout
+kubectl rollout status deployment/city-service -n weather-app --timeout=180s
+kubectl rollout status deployment/weather-service -n weather-app --timeout=180s
+kubectl rollout status deployment/frontend -n weather-app --timeout=120s
 
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}Deployment Complete!${NC}"

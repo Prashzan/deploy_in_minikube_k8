@@ -7,7 +7,7 @@ metadata:
     app: city-service
     tier: backend
 spec:
-  replicas: 1  # Run 2 replicas for high availability
+  replicas: 1
   selector:
     matchLabels:
       app: city-service
@@ -19,8 +19,6 @@ spec:
     spec:
       containers:
       - name: city-service
-        # IMPORTANT: Replace with your Docker Hub image
-        # Format: <dockerhub-username>/city-service:v1.0
         image: prashzan/city-service:v1.0
         imagePullPolicy: Always
         ports:

@@ -7,7 +7,7 @@ metadata:
     app: weather-service
     tier: backend
 spec:
-  replicas: 1  # Run 2 replicas for high availability
+  replicas: 1
   selector:
     matchLabels:
       app: weather-service
@@ -19,8 +19,6 @@ spec:
     spec:
       containers:
       - name: weather-service
-        # IMPORTANT: Replace with your Docker Hub image
-        # Format: <dockerhub-username>/weather-service:v1.0
         image: prashzan/weather-service:v1.0
         imagePullPolicy: Always
         ports:
@@ -33,7 +31,7 @@ spec:
               name: weather-app-secrets
               key: openweather-api-key
         - name: DB_HOST
-          value: "postgres-service"  # Kubernetes service name
+          value: "postgres-service"
         - name: DB_NAME
           valueFrom:
             secretKeyRef:

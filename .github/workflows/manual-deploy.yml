@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Environment to deploy to'
+        description: 'Environment'
         required: true
         type: choice
         options:
@@ -12,20 +12,18 @@ on:
           - staging
           - production
       version:
-        description: 'Docker image tag/version to deploy'
+        description: 'Image tag'
         required: true
         default: 'latest'
       dry_run:
-        description: 'Run deployment in dry-run mode'
-        required: false
+        description: 'Dry run'
         type: boolean
         default: false
 
 jobs:
-  manual-deploy:
+  deploy:
     name: Deploy to ${{ github.event.inputs.environment }}
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -33,72 +31,45 @@ jobs:
       - name: Set up kubectl
         uses: azure/setup-kubectl@v3
 
-      - name: Display deployment info
+      - name: Install envsubst
+        run: sudo apt-get update && sudo apt-get install -y gettext-base
+
+      - name: Display info
         run: |
-          echo "🚀 Deploying Weather App"
           echo "Environment: ${{ github.event.inputs.environment }}"
           echo "Version: ${{ github.event.inputs.version }}"
           echo "Dry Run: ${{ github.event.inputs.dry_run }}"
-          echo "Triggered by: ${{ github.actor }}"
 
-      - name: Update manifests with version
+      - name: Prepare manifests
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          IMAGE_TAG: ${{ github.event.inputs.version }}
         run: |
           mkdir -p /tmp/deploy
           cp k8s/*.yaml /tmp/deploy/
           
-          # Update image tags
-          sed -i "s|YOUR_DOCKERHUB_USERNAME/city-service:v1.0|${{ secrets.DOCKERHUB_USERNAME }}/city-service:${{ github.event.inputs.version }}|g" /tmp/deploy/06-city-service-deployment.yaml
-          sed -i "s|YOUR_DOCKERHUB_USERNAME/weather-service:v1.0|${{ secrets.DOCKERHUB_USERNAME }}/weather-service:${{ github.event.inputs.version }}|g" /tmp/deploy/08-weather-service-deployment.yaml
-          sed -i "s|YOUR_DOCKERHUB_USERNAME/weather-frontend:v1.0|${{ secrets.DOCKERHUB_USERNAME }}/weather-frontend:${{ github.event.inputs.version }}|g" /tmp/deploy/10-frontend-deployment.yaml
+          # Use envsubst on deployment files
+          envsubst < k8s/06-city-service-deployment.yaml > /tmp/deploy/06-city-service-deployment.yaml
+          envsubst < k8s/08-weather-service-deployment.yaml > /tmp/deploy/08-weather-service-deployment.yaml
+          envsubst < k8s/10-frontend-deployment.yaml > /tmp/deploy/10-frontend-deployment.yaml
           
           # Update secrets
-          sed -i "s|openweather-api-key: \"your_openweather_api_key_here\"|openweather-api-key: \"${{ secrets.OPENWEATHER_API_KEY }}\"|g" /tmp/deploy/02-secrets.yaml
+          sed -i "s|your_openweather_api_key_here|${{ secrets.OPENWEATHER_API_KEY }}|g" /tmp/deploy/02-secrets.yaml
+          
+          echo "Images:"
+          grep "image:" /tmp/deploy/*-deployment.yaml
 
-      - name: Dry Run Validation
+      - name: Dry run
         if: github.event.inputs.dry_run == 'true'
         run: |
-          echo "🔍 Running dry-run validation..."
+          echo "🔍 Dry run..."
           kubectl apply --dry-run=client -f /tmp/deploy/
-          echo "✅ Dry run validation passed!"
-          echo "Deployment would be successful. Stopping here (dry-run mode)."
+          echo "✅ Dry run passed!"
 
-      - name: Deploy to Kubernetes
+      - name: Deploy
         if: github.event.inputs.dry_run == 'false'
-        run: |
-          echo "Deploying to ${{ github.event.inputs.environment }}..."
-          
-          # For local Minikube (development/staging)
-          if [[ "${{ github.event.inputs.environment }}" != "production" ]]; then
-            # Start Minikube if not running
-            minikube start --cpus=2 --memory=4096 || true
-          fi
-          
-          # Apply manifests
-          kubectl apply -f /tmp/deploy/00-namespace.yaml
-          kubectl apply -f /tmp/deploy/01-configmap.yaml
-          kubectl apply -f /tmp/deploy/02-secrets.yaml
-          kubectl apply -f /tmp/deploy/03-pvc.yaml
-          kubectl apply -f /tmp/deploy/04-postgres-deployment.yaml
-          kubectl apply -f /tmp/deploy/05-postgres-service.yaml
-          kubectl apply -f /tmp/deploy/06-city-service-deployment.yaml
-          kubectl apply -f /tmp/deploy/07-city-service-service.yaml
-          kubectl apply -f /tmp/deploy/08-weather-service-deployment.yaml
-          kubectl apply -f /tmp/deploy/09-weather-service-service.yaml
-          kubectl apply -f /tmp/deploy/10-frontend-deployment.yaml
-          kubectl apply -f /tmp/deploy/11-frontend-service.yaml
+        run: kubectl apply -f /tmp/deploy/
 
-      - name: Verify deployment
+      - name: Verify
         if: github.event.inputs.dry_run == 'false'
-        run: |
-          echo "Verifying deployment..."
-          kubectl get pods -n weather-app
-          kubectl get svc -n weather-app
-
-      - name: Deployment summary
-        run: |
-          if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
-            echo "✅ Dry run completed successfully"
-          else
-            echo "✅ Deployment to ${{ github.event.inputs.environment }} completed!"
-            echo "Version deployed: ${{ github.event.inputs.version }}"
-          fi
+        run: kubectl get pods -n weather-app
