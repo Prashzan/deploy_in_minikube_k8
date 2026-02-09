@@ -169,6 +169,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: dry-run
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
     strategy:
       matrix:
         service: [city-service, weather-service, frontend]
@@ -191,8 +193,8 @@ jobs:
           context: ./${{ matrix.service }}
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.service }}:${{ github.sha }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.service }}:latest
+            ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service }}:${{ github.sha }}
+            ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
