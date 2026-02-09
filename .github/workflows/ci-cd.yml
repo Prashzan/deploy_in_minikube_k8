@@ -172,6 +172,10 @@ jobs:
     strategy:
       matrix:
         service: [city-service, weather-service, frontend]
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      IMAGE_TAG: ${{ github.sha }}   # unique per commit
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -182,23 +186,26 @@ jobs:
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
+
+      - name: Set Docker image name
+        run: |
+          echo "IMAGE_NAME=${DOCKERHUB_USERNAME}/${{ matrix.service }}" >> $GITHUB_ENV
+          echo "Docker image tags will be: ${DOCKERHUB_USERNAME}/${{ matrix.service }}:${IMAGE_TAG} and ${DOCKERHUB_USERNAME}/${{ matrix.service }}:latest"
 
       - name: Build and push Docker image
-        env:
-          IMAGE_TAG: ${{ github.sha }}
-          IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.service }}
         run: |
           echo "Building Docker image for $IMAGE_NAME:$IMAGE_TAG and $IMAGE_NAME:latest"
 
           docker buildx build \
             --push \
-            --tag $IMAGE_NAME:$IMAGE_TAG \
-            --tag $IMAGE_NAME:latest \
+            --tag "$IMAGE_NAME:$IMAGE_TAG" \
+            --tag "$IMAGE_NAME:latest" \
             --cache-from type=gha \
             --cache-to type=gha,mode=max \
-            ./${{ matrix.service }}
+            "./${{ matrix.service }}"
+
 
 
 
