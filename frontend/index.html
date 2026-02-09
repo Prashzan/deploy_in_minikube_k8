@@ -311,9 +311,13 @@
     <script>
         // Get Minikube service URLs - these will be replaced by actual URLs
         // When running on Minikube, access via: minikube service <service-name> --url
-        const MINIKUBE_IP = '192.168.49.2';
-        const CITY_SERVICE = window.CITY_SERVICE_URL || `http://${MINIKUBE_IP}:30001`;
-        const WEATHER_SERVICE = window.WEATHER_SERVICE_URL || `http://${MINIKUBE_IP}:30002`;
+        // const MINIKUBE_IP = '192.168.49.2';
+        // const CITY_SERVICE = window.CITY_SERVICE_URL || `http://${MINIKUBE_IP}:30001`;
+        // const WEATHER_SERVICE = window.WEATHER_SERVICE_URL || `http://${MINIKUBE_IP}:30002`;
+
+        const BASE_URL = window.location.origin; // Uses same domain as frontend
+        const CITY_SERVICE = `${BASE_URL}/api/cities`;
+        const WEATHER_SERVICE = `${BASE_URL}/api/weather`;
 
         // Weather icon mapping
         const weatherIcons = {

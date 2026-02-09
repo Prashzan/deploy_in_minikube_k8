@@ -6,11 +6,10 @@ metadata:
   labels:
     app: frontend
 spec:
-  type: NodePort  # Expose outside cluster via NodePort
+  type: ClusterIP
   ports:
   - port: 80
     targetPort: 80
-    nodePort: 30080  # Fixed port for easy access
     protocol: TCP
     name: http
   selector:
