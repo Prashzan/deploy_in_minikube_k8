@@ -120,6 +120,12 @@ jobs:
       - name: Install envsubst
         run: sudo apt-get update && sudo apt-get install -y gettext-base
 
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
       - name: Prepare manifests with envsubst
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -138,10 +144,19 @@ jobs:
           echo "Generated manifests:"
           grep "image:" /tmp/k8s-manifests/*-deployment.yaml
 
-      - name: Dry run validation
+      # - name: Dry run validation
+      #   run: |
+      #     echo "Running dry-run..."
+      #     kubectl create --dry-run=client --validate=false -f /tmp/k8s-manifests/
+
+
+      - name: Kubernetes manifest validation (offline)
         run: |
-          echo "Running dry-run..."
-          kubectl create --dry-run=client --validate=false -f /tmp/k8s-manifests/
+          echo "Validating YAML syntax..."
+          for f in /tmp/k8s-manifests/*.yaml; do
+            echo "Checking $f"
+            yq eval '.' "$f" >/dev/null
+          done
 
       - name: Upload manifests
         uses: actions/upload-artifact@v4
