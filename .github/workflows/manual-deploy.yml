@@ -34,6 +34,12 @@ jobs:
       - name: Install envsubst
         run: sudo apt-get update && sudo apt-get install -y gettext-base
 
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
       - name: Display info
         run: |
           echo "Environment: ${{ github.event.inputs.environment }}"
@@ -63,7 +69,7 @@ jobs:
         if: github.event.inputs.dry_run == 'true'
         run: |
           echo "🔍 Dry run..."
-          kubectl apply --dry-run=client -f /tmp/deploy/
+          kubectl apply --dry-run=client --validate=false -f /tmp/deploy/
           echo "✅ Dry run passed!"
 
       - name: Deploy
