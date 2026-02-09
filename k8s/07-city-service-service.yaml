@@ -6,11 +6,10 @@ metadata:
   labels:
     app: city-service
 spec:
-  type: NodePort  # Expose outside cluster via NodePort
+  type: ClusterIP
   ports:
   - port: 5001
     targetPort: 5001
-    nodePort: 30001  # Fixed port for easy access (range: 30000-32767)
     protocol: TCP
     name: http
   selector:

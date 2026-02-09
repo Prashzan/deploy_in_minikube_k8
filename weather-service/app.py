@@ -179,7 +179,7 @@ def get_weather():
             cur.execute("""
                 INSERT INTO weather_searches 
                 (city_name, country, latitude, longitude, temperature, feels_like, 
-                 humidity, pressure, weather_main, weather_description, wind_speed)
+                humidity, pressure, weather_main, weather_description, wind_speed)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 weather_data['city'],
