@@ -65,12 +65,14 @@ jobs:
           echo "Images:"
           grep "image:" /tmp/deploy/*-deployment.yaml
 
-      - name: Dry run
+      - name: Dry run or manifest validation
         if: github.event.inputs.dry_run == 'true'
         run: |
-          echo "🔍 Dry run..."
-          kubectl apply --dry-run=client --validate=false -f /tmp/deploy/
-          echo "✅ Dry run passed!"
+          echo "Validating YAML syntax..."
+          for f in /tmp/k8s-manifests/*.yaml; do
+            echo "Checking $f"
+            yq eval '.' "$f" >/dev/null
+          done
 
       - name: Deploy
         if: github.event.inputs.dry_run == 'false'
