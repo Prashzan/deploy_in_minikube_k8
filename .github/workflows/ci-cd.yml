@@ -51,8 +51,8 @@ jobs:
           
           # Use envsubst to replace variables for validation
           for file in /tmp/validate/06-city-service-deployment.yaml \
-                       /tmp/validate/08-weather-service-deployment.yaml \
-                       /tmp/validate/10-frontend-deployment.yaml; do
+                      /tmp/validate/08-weather-service-deployment.yaml \
+                      /tmp/validate/10-frontend-deployment.yaml; do
             if [ -f "$file" ]; then
               envsubst < "$file" > "${file}.processed"
               mv "${file}.processed" "$file"
@@ -198,42 +198,6 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME || 'prashzan' }}/${{ matrix.service }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-
-
-  # build-and-push:
-  #   name: Build & Push
-  #   runs-on: ubuntu-latest
-  #   needs: dry-run
-  #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-  #   env:
-  #     DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-  #   strategy:
-  #     matrix:
-  #       service: [city-service, weather-service, frontend]
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v4
-
-  #     - name: Set up Docker Buildx
-  #       uses: docker/setup-buildx-action@v3
-
-  #     - name: Login to Docker Hub
-  #       uses: docker/login-action@v3
-  #       with:
-  #         username: ${{ secrets.DOCKERHUB_USERNAME }}
-  #         password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-  #     - name: Build and push
-  #       uses: docker/build-push-action@v5
-  #       with:
-  #         context: ./${{ matrix.service }}
-  #         push: true
-  #         tags: |
-  #           ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service }}:${{ github.sha }}
-  #           ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service }}:latest
-  #         cache-from: type=gha
-  #         cache-to: type=gha,mode=max
 
   deploy-to-minikube:
     name: Deploy
