@@ -135,6 +135,13 @@ jobs:
           
           # Copy all manifests
           cp k8s/*.yaml /tmp/k8s-manifests/
+
+          # Generate secrets from template
+          cp k8s/02-secrets.yaml.template /tmp/k8s-manifests/02-secrets.yaml
+
+          # Replace placeholders with GitHub secrets
+          sed -i "s|YOUR_OPENWEATHER_API_KEY_HERE|${{ secrets.OPENWEATHER_API_KEY }}|g" /tmp/k8s-manifests/02-secrets.yaml
+          sed -i "s|YOUR_POSTGRES_PASSWORD_HERE|weatherpass|g" /tmp/k8s-manifests/02-secrets.yaml
           
           # Use envsubst on deployment files
           envsubst < k8s/06-city-service-deployment.yaml > /tmp/k8s-manifests/06-city-service-deployment.yaml
@@ -143,6 +150,7 @@ jobs:
           
           echo "Generated manifests:"
           grep "image:" /tmp/k8s-manifests/*-deployment.yaml
+          ls -la /tmp/k8s-manifests/
 
       # - name: Dry run validation
       #   run: |
@@ -218,9 +226,9 @@ jobs:
           name: k8s-manifests
           path: ./k8s-deploy
 
-      - name: Update secrets
-        run: |
-          sed -i "s|your_openweather_api_key_here|${{ secrets.OPENWEATHER_API_KEY }}|g" k8s-deploy/02-secrets.yaml
+      # - name: Update secrets
+      #   run: |
+      #     sed -i "s|your_openweather_api_key_here|${{ secrets.OPENWEATHER_API_KEY }}|g" k8s-deploy/02-secrets.yaml
 
       - name: Deploy
         run: |

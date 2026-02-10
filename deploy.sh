@@ -41,7 +41,11 @@ kubectl apply -f k8s/01-configmap.yaml
 echo ""
 
 echo -e "${BLUE}Step 3: Creating Secrets...${NC}"
-kubectl apply -f k8s/02-secrets.yaml
+cp k8s/02-secrets.yaml.template /tmp/02-secrets.yaml
+sed -i "s|YOUR_OPENWEATHER_API_KEY_HERE|$OPENWEATHER_API_KEY|g" /tmp/02-secrets.yaml
+sed -i "s|YOUR_POSTGRES_PASSWORD_HERE|$POSTGRES_PASSWORD|g" /tmp/02-secrets.yaml
+kubectl apply -f /tmp/02-secrets.yaml
+rm /tmp/02-secrets.yaml
 echo ""
 
 echo -e "${BLUE}Step 4: Creating PersistentVolumeClaim...${NC}"
