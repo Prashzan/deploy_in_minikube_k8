@@ -1,0 +1,3 @@
+
+# Kubernetes Secrets - NEVER COMMIT!
+k8s/02-secrets.yaml
