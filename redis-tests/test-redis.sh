@@ -50,7 +50,11 @@ echo ""
 # Test 3: Check weather service readiness
 echo -e "${BOLD}[Test 3] Checking Weather Service Redis Connection${NC}"
 echo "─────────────────────────────────────────────────────────"
+<<<<<<< HEAD
+READY_RESPONSE=$(curl -s "$BASE_URL/api/weather/ready")
+=======
 READY_RESPONSE=$(curl -s "$BASE_URL/api/weather/api/weather/ready")
+>>>>>>> origin/main
 REDIS_STATUS_API=$(echo $READY_RESPONSE | grep -o '"redis":"[^"]*"' | cut -d'"' -f4)
 
 echo "Ready endpoint response:"
@@ -79,7 +83,11 @@ echo "────────────────────────�
 echo "Requesting: London weather"
 
 START=$(date +%s%N)
+<<<<<<< HEAD
+RESPONSE1=$(curl -s "$BASE_URL/api/weather?city=London")
+=======
 RESPONSE1=$(curl -s "$BASE_URL/api/weather/api/weather?city=London")
+>>>>>>> origin/main
 END=$(date +%s%N)
 TIME1=$(( (END - START) / 1000000 ))
 
@@ -109,7 +117,11 @@ echo "────────────────────────�
 echo "Requesting: London weather (same city)"
 
 START=$(date +%s%N)
+<<<<<<< HEAD
+RESPONSE2=$(curl -s "$BASE_URL/api/weather?city=London")
+=======
 RESPONSE2=$(curl -s "$BASE_URL/api/weather/api/weather?city=London")
+>>>>>>> origin/main
 END=$(date +%s%N)
 TIME2=$(( (END - START) / 1000000 ))
 
@@ -161,7 +173,11 @@ CITIES=("Tokyo" "Paris" "New York" "Mumbai")
 
 for city in "${CITIES[@]}"; do
     echo -n "  Requesting $city... "
+<<<<<<< HEAD
+    RESP=$(curl -s "$BASE_URL/api/weather?city=$city")
+=======
     RESP=$(curl -s "$BASE_URL/api/weather/api/weather?city=$city")
+>>>>>>> origin/main
     TEMP=$(echo $RESP | grep -o '"temperature":[^,]*' | cut -d':' -f2)
     FROM_CACHE=$(echo $RESP | grep -o '"from_cache":[^,]*' | cut -d':' -f2)
     
@@ -196,7 +212,11 @@ echo ""
 # Test 10: Performance stats from database
 echo -e "${BOLD}[Test 10] Performance Statistics${NC}"
 echo "─────────────────────────────────────────────────────────"
+<<<<<<< HEAD
+PERF_STATS=$(curl -s "$BASE_URL/api/weather/stats")
+=======
 PERF_STATS=$(curl -s "$BASE_URL/api/weather/api/weather/stats")
+>>>>>>> origin/main
 echo "$PERF_STATS" | jq '.' 2>/dev/null || echo "$PERF_STATS"
 echo ""
 
@@ -229,4 +249,8 @@ echo -e "${YELLOW}Try these commands:${NC}"
 echo "  curl http://weather.local/api/cache/stats | jq '.'"
 echo "  curl http://weather.local/api/weather/stats | jq '.'"
 echo "  kubectl exec -it $REDIS_POD -n weather-app -- redis-cli MONITOR"
+<<<<<<< HEAD
 echo ""
+=======
+echo ""
+>>>>>>> origin/main
