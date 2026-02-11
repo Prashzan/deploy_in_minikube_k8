@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
       - name: weather-service
-        image: prashzan/weather-service:v1.0
+        image: prashzan/weather-service:redisV1
         imagePullPolicy: Always
         ports:
         - containerPort: 5002
@@ -49,6 +49,13 @@ spec:
               key: postgres-password
         - name: DB_PORT
           value: "5432"
+        # Redis Configuration
+        - name: REDIS_HOST
+          value: "redis-service"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: CACHE_TTL
+          value: "300"
         resources:
           requests:
             memory: "128Mi"
@@ -62,13 +69,14 @@ spec:
             port: 5002
           initialDelaySeconds: 60
           periodSeconds: 10
-          timeoutSeconds: 5
+          timeoutSeconds: 5 
           failureThreshold: 3
+
         readinessProbe:
           httpGet:
             path: /ready
             port: 5002
           initialDelaySeconds: 30
           periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 5
+          timeoutSeconds: 5 
+          failureThreshold: 3
